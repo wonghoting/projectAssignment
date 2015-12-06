@@ -93,10 +93,10 @@ app.delete('/:attrib/:attrib_value',function(req,res) {
 
 //uppdate normal
 app.put('/restaurant_id/:restaurant_id/:attrib/:attrib_value', function(req,res) {
-	if(req.params.attrib == "street"|| req.params.attrib == "zipcode" || req.params.attrib == "building" || req.params.attrib == "coord" || req.params.attrib == "borough" || req.params.attrib == "cuisine" || req.params.attrib == "name" || req.params.attrib == "restaurant_id"){
+	if(req.params.attrib == "street"|| req.params.attrib == "zipcode" || req.params.attrib == "building" || req.params.attrib == "borough" || req.params.attrib == "cuisine" || req.params.attrib == "name" || req.params.attrib == "restaurant_id"){
 		var criteria = {};
 		var temp = req.params.attrib;
-		if(temp=="street" ||temp=="zipcode" ||temp=="building"||temp=="coord"){
+		if(temp=="street" ||temp=="zipcode" ||temp=="building"){
 			temp = "address."+temp;
 		}
 		criteria[temp] = req.params.attrib_value;
@@ -120,10 +120,42 @@ app.put('/restaurant_id/:restaurant_id/:attrib/:attrib_value', function(req,res)
 				}
 			});
 		});
+	}else if(req.params.attrib == "lat" || req.params.attrib == "lon"){
+		var restaurantSchema = require('./models/restaurant');
+		mongoose.connect(mongodbURL);
+		var db = mongoose.connection;
+		db.on('error', console.error.bind(console, 'connection error:'));
+		db.once('open', function (callback) {
+			var restaurant = mongoose.model('restaurant', restaurantSchema);
+			restaurant.findOne({restaurant_id: req.params.restaurant_id}, function(err,result) {
+				if (err) return console.error(err);
+					console.log(result);
+				if(req.params.attrib == "lat"){
+					result.address.coord.pop();
+					result.address.coord.push(req.params.attrib_value);
+				}else if (req.params.attrib == "lon"){
+					var lat = result.address.coord.pop();
+					result.address.coord.pop();
+					result.address.coord.push(req.params.attrib_value);
+					result.address.coord.push(lat);
+				}
+				result.save(function(err) {
+					if (err) {
+						res.status(500).json(err);
+					}
+					else {
+						res.status(200).json({message: 'update done'});
+						db.close();
+					}
+				});
+			});
+		});
 	}else{
 		res.status(200).json({message: 'No matching attribute'});
 	}
 });
+
+
 
 //update to add grade
 app.put('/restaurant_id/:restaurant_id/grade', function(req,res) {
@@ -131,7 +163,7 @@ app.put('/restaurant_id/:restaurant_id/grade', function(req,res) {
 	var removeGrade = false;
 	if(req.body.remove =="true"){
 		console.log("remove");
-		remove = true;
+		removeGrade = true;
 	}
 	var output = "{message: 'update done'}";
 	criteria["date"] = req.body.date;
@@ -152,7 +184,7 @@ app.put('/restaurant_id/:restaurant_id/grade', function(req,res) {
 			var existing = false;
 			for (var i=0;i<r.grades.length;i++) {
 				if(criteria["date"] == r.grades[i].date && criteria["grade"] == r.grades[i].grade && criteria["score"] == r.grades[i].score){
-					if(remove == true) {
+					if(removeGrade == true) {
 						r.grades = r.grades.splice(i,1);
 						output = "{message: 'update done. The grade already removed'}";
 					}else{
@@ -179,10 +211,10 @@ app.put('/restaurant_id/:restaurant_id/grade', function(req,res) {
 
 //display by attribute
 app.get('/:attrib/:attrib_value', function(req,res) {
-	if(req.params.attrib == "street"|| req.params.attrib == "zipcode" || req.params.attrib == "building" || req.params.attrib == "coord" || req.params.attrib == "borough" || req.params.attrib == "cuisine" || req.params.attrib == "name" || req.params.attrib == "restaurant_id" || req.params.attrib == "grade" || req.params.attrib == "date" || req.params.attrib == "score") {
+	if(req.params.attrib == "street"|| req.params.attrib == "zipcode" || req.params.attrib == "building" || req.params.attrib == "borough" || req.params.attrib == "cuisine" || req.params.attrib == "name" || req.params.attrib == "restaurant_id" || req.params.attrib == "grade" || req.params.attrib == "date" || req.params.attrib == "score") {
 		var criteria = {};
 		var temp = req.params.attrib;
-		if(temp=="street" ||temp=="zipcode" ||temp=="building"||temp=="coord"){
+		if(temp=="street" ||temp=="zipcode" ||temp=="building"){
 			temp = "address."+temp;
 		}
 		if(temp == "grade" || temp == "date" || temp == "score") {
@@ -220,7 +252,6 @@ app.get('/:attrib/:attrib_value', function(req,res) {
 });
 
 
-
 //display all
 app.get('/', function(req,res) {
 	var restaurantSchema = require('./models/restaurant');
@@ -245,10 +276,5 @@ app.get('/', function(req,res) {
 		});
 	});
 });
-
-//
-
-
-
 
 app.listen(process.env.PORT || 8099);
